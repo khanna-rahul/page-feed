@@ -23,6 +23,10 @@ if ( !class_exists( "FBPageEvent" ) ) {
 			add_action( 'init', array($this, 'FB_Event_Post' ));
 
 			add_shortcode( 'events', array( $this, 'page_feed_shortcode' ) );
+
+			add_action( 'add_meta_boxes', array($this, 'add_fb_metaboxes') );
+
+			add_action('save_post', array($this, 'page_feed_save_events_meta') );
 		}
 
 		/*
@@ -38,9 +42,6 @@ if ( !class_exists( "FBPageEvent" ) ) {
 		function page_feed_settings_page() {
 			?>
 			<div class="wrap">
-				<?php if(!is_plugin_active('advanced-custom-fields/acf.php')) : ?>
-					<div class="alert">This plugin uses Advanced Custom Fields to show post meta data in FB Events.</div>
-				<?php endif; ?>
 				<h2>Facebook Info</h2>
 
 				<form method="post" action="options.php">
@@ -187,6 +188,87 @@ if ( !class_exists( "FBPageEvent" ) ) {
 				$content .= '</ul>';
 			}
 			return $content;
+		}
+
+		/*
+		 * Add Custom Meta Boxes
+		*/
+		function add_fb_metaboxes() {
+			add_meta_box('page_feed_event_id', 'Event ID', array($this, 'page_feed_event_callback_id'), 'fb-event', 'side', 'default');
+			add_meta_box('page_feed_event_start_time', 'Event Start Date Time', array($this, 'page_feed_event_callback_start_time'), 'fb-event', 'side', 'default');
+			add_meta_box('page_feed_event_end_time', 'Event End Date Time', array($this, 'page_feed_event_callback_end_time'), 'fb-event', 'side', 'default');
+		}
+
+		/*
+		 * Display Custom Meta Box for ID
+		*/
+		function page_feed_event_callback_id() {
+			global $post;
+			
+			// Noncename needed to verify where the data originated
+			echo '<input type="hidden" name="eventmeta_noncename" id="eventmeta_noncename" value="' . 
+			wp_create_nonce( plugin_basename(__FILE__) ) . '" />';
+			
+			$id = get_post_meta($post->ID, 'event_id');
+			
+			echo '<input type="text" name="event_id" value="' . $id[0]  . '" class="widefat" />';
+
+		}
+
+		/*
+		 * Display Custom Meta Box for Start Time
+		*/
+		function page_feed_event_callback_start_time() {
+			global $post;
+			
+			$time = get_post_meta($post->ID, 'start_time');
+			
+			echo '<input type="text" name="start_time" value="' . $time[0]  . '" class="widefat" />';
+
+		}
+
+		/*
+		 * Display Custom Meta Box for End Time
+		*/
+		function page_feed_event_callback_end_time() {
+			global $post;
+			
+			$time = get_post_meta($post->ID, 'end_time');
+			
+			echo '<input type="text" name="end_time" value="' . $time[0]  . '" class="widefat" />';
+
+		}
+
+		function page_feed_save_events_meta($post_id) {
+	
+			if ( !wp_verify_nonce( $_POST['eventmeta_noncename'], plugin_basename(__FILE__) )) {
+				return $post_id;
+			}
+
+			if ( !current_user_can( 'edit_post', $post->ID ))
+				return $post_id;
+
+			$events_meta['event_id'] = $_POST['event_id'];
+			$events_meta['start_time'] = $_POST['start_time'];
+			$events_meta['end_time'] = $_POST['end_time'];
+			
+			foreach ($events_meta as $key => $value) { 
+				if( $post->post_type == 'revision' ) 
+					return;
+				
+				$value = implode(',', (array)$value);
+				
+				if(get_post_meta($post_id, $key, FALSE)) { 
+					
+					update_post_meta($post_id, $key, $value);
+				
+				} else { 
+					
+					add_post_meta($post_id, $key, $value);
+				
+				}
+			}
+
 		}
 
 	}
